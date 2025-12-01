@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "atp"
+version = "0.1.0"
+description = "ATP (Application Turning Point) analysis: compute knee of latency-vs-IOPS using the Half-Latency Rule"
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [
+  { name = "ATP Contributors" }
+]
+keywords = ["ATP", "latency", "IOPS", "knee", "performance", "storage"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Operating System :: OS Independent",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering",
+]
+dependencies = [
+  "numpy",
+  "pandas",
+]
+
+[project.optional-dependencies]
+plot = ["matplotlib"]
+excel = ["openpyxl"]
+
+[project.scripts]
+atp = "atp.cli:main"
+
+[tool.setuptools]
+packages = ["atp"]
+include-package-data = true

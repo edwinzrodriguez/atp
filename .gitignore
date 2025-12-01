@@ -1,0 +1,7 @@
+# editor backup files etc.
+\#*\#
+.idea
+.vscode
+
+# Eclipse project files
+.*project
