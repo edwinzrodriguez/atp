@@ -8,8 +8,8 @@ import numpy as np
 
 from .io import read_table
 from .computation import find_knee_half_latency
-from .output import write_text_report
-from .plotting import plot_latency_curve
+from .output import write_text_report, make_comparison_lines
+from .plotting import plot_latency_curve, plot_latency_curve_compare
 
 
 def positive_int(value: str) -> Optional[int]:
@@ -38,6 +38,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--plot-pdf", help="Path to save plot as PDF")
     p.add_argument("--show", action="store_true", help="Show interactive plot window")
     p.add_argument("--title", help="Plot title")
+    # Comparison options
+    p.add_argument("--compare", dest="input2", help="Optional: second input CSV/XLSX file to compare against")
+    p.add_argument("--iops-col2", help="Column name or index for IOPS in second file")
+    p.add_argument("--latency-col2", help="Column name or index for latency in second file")
+    p.add_argument("--sheet2", help="Sheet for second Excel file")
+    p.add_argument("--delimiter2", help="CSV delimiter for second file")
+    p.add_argument("--header2", help="Header row index for second file; use 'none' for no header")
+    p.add_argument("--label1", default="A", help="Label for first dataset in comparison outputs")
+    p.add_argument("--label2", default="B", help="Label for second dataset in comparison outputs")
     return p
 
 
@@ -80,18 +89,71 @@ def main(argv=None) -> int:
 
     res = find_knee_half_latency(iops, latency, rule=args.rule, smooth_window=args.smooth)
 
-    write_text_report(iops, latency, res, out_path=args.report, latency_units=args.latency_units)
+    # Handle comparison mode if a second input is provided
+    if args.input2:
+        # Parse header2
+        header2: Optional[int]
+        if args.header2 is None:
+            header2 = header
+        elif isinstance(args.header2, str) and args.header2.lower() == "none":
+            header2 = None
+        else:
+            try:
+                header2 = int(args.header2)
+            except Exception:
+                header2 = header
 
-    if args.plot_pdf or args.show:
-        plot_latency_curve(
-            iops,
-            latency,
-            res,
-            title=args.title,
-            latency_units=args.latency_units,
-            save_pdf=args.plot_pdf,
-            show=args.show,
+        # Fallbacks for second file configuration
+        iops_col2 = parse_col_arg(args.iops_col2) if args.iops_col2 is not None else iops_col
+        latency_col2 = parse_col_arg(args.latency_col2) if args.latency_col2 is not None else latency_col
+        sheet2 = None
+        if args.sheet2 is not None:
+            try:
+                sheet2 = int(args.sheet2)
+            except ValueError:
+                sheet2 = args.sheet2
+        else:
+            sheet2 = sheet
+
+        iops2, latency2, _ = read_table(
+            args.input2,
+            iops_col=iops_col2,
+            latency_col=latency_col2,
+            sheet=sheet2,
+            delimiter=args.delimiter2 if args.delimiter2 is not None else args.delimiter,
+            header=header2,
         )
+
+        res2 = find_knee_half_latency(iops2, latency2, rule=args.rule, smooth_window=args.smooth)
+
+        # Compose extra comparison lines and write a report primarily for dataset 1
+        comp_lines = make_comparison_lines(res, res2, label1=args.label1, label2=args.label2, latency_units=args.latency_units)
+        write_text_report(iops, latency, res, out_path=args.report, extra_lines=comp_lines, latency_units=args.latency_units)
+
+        if args.plot_pdf or args.show:
+            plot_latency_curve_compare(
+                iops, latency, res,
+                iops2, latency2, res2,
+                label1=args.label1, label2=args.label2,
+                title=args.title,
+                latency_units=args.latency_units,
+                save_pdf=args.plot_pdf,
+                show=args.show,
+            )
+    else:
+        # Single dataset behavior (backward compatible)
+        write_text_report(iops, latency, res, out_path=args.report, latency_units=args.latency_units)
+
+        if args.plot_pdf or args.show:
+            plot_latency_curve(
+                iops,
+                latency,
+                res,
+                title=args.title,
+                latency_units=args.latency_units,
+                save_pdf=args.plot_pdf,
+                show=args.show,
+            )
 
     return 0
 

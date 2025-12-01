@@ -23,6 +23,14 @@ ATP (Application Turning Point) analysis tools for computing the knee of a laten
 - Show interactive plot:
   `python -m atp data.csv --iops-col IOPS --latency-col Latency --show`
 
+- Compare two datasets (report absolute and % differences, plus overlay plot):
+  `python -m atp dataA.csv --iops-col IOPS --latency-col Latency --compare dataB.csv --iops-col2 IOPS --latency-col2 Latency --label1 A --label2 B --plot-pdf compare.pdf`
+
+  Notes:
+  - If `--iops-col2` / `--latency-col2` are omitted, the first dataset's column settings are reused.
+  - `--sheet2`, `--header2`, and `--delimiter2` allow specifying parsing for the second file.
+  - The generated report includes absolute and percentage differences for ATP (IOPS at knee) and knee latency.
+
 ## Python API
 
 - `find_knee_half_latency(iops, latency, rule="midrange", smooth_window=None)`
