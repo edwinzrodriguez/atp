@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 from typing import Optional, Tuple, Union
+import xml.etree.ElementTree as ET
 
 import numpy as np
 
@@ -24,23 +25,52 @@ def _require_pandas():
         )
 
 
+def read_xml(path: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Read an XML summary file and extract achieved rate and average latency.
+    """
+    tree = ET.parse(path)
+    root = tree.getroot()
+    
+    iops_list = []
+    lat_list = []
+    
+    for run in root.findall("run"):
+        metrics = {m.get("name"): m.text for m in run.findall("metric")}
+        
+        # 'achieved rate' corresponds to IOPS, 'average latency' to latency
+        if "achieved rate" in metrics and "average latency" in metrics:
+            try:
+                iops_list.append(float(metrics["achieved rate"]))
+                lat_list.append(float(metrics["average latency"]))
+            except (ValueError, TypeError):
+                continue
+                
+    iops = np.array(iops_list, dtype=float)
+    latency = np.array(lat_list, dtype=float)
+    half_dummy = np.zeros_like(latency)
+    return iops, latency, half_dummy
+
+
 def read_table(
     path: str,
-    iops_col: Union[str, int],
-    latency_col: Union[str, int],
+    iops_col: Optional[Union[str, int]] = None,
+    latency_col: Optional[Union[str, int]] = None,
     sheet: Optional[Union[str, int]] = None,
     delimiter: Optional[str] = None,
     header: Optional[Union[int, None]] = 0,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Read a CSV or XLSX file and extract IOPS and latency columns.
+    Read a CSV, XLSX, or XML file and extract IOPS and latency columns.
 
     Returns: (iops_np, latency_np, half_latency_dummy)
-    The third array is a placeholder (zeros) to simplify downstream tabular reporting
-    where a constant half-latency line may be displayed per row.
     """
-    _require_pandas()
     ext = os.path.splitext(path)[1].lower()
+    
+    if ext == ".xml":
+        return read_xml(path)
+        
+    _require_pandas()
     if ext in (".csv", ".tsv", ".txt"):
         df = pd.read_csv(path, delimiter=delimiter, header=header)
     elif ext in (".xlsx", ".xlsm", ".xls"):
@@ -48,17 +78,8 @@ def read_table(
     else:
         raise ValueError(f"Unsupported file extension: {ext}")
 
-    # Allow integer index or column name
-    if isinstance(iops_col, int):
-        iops_series = df.iloc[:, iops_col]
-    else:
-        iops_series = df[iops_col]
-    if isinstance(latency_col, int):
-        lat_series = df.iloc[:, latency_col]
-    else:
-        lat_series = df[latency_col]
+    # For XML, columns were already identified. For others, use arguments.
+    if iops_col is None or latency_col is None:
+        raise ValueError(f"iops_col and latency_col are required for {ext} files")
 
-    iops = np.asarray(iops_series.to_numpy(dtype=float))
-    latency = np.asarray(lat_series.to_numpy(dtype=float))
-    half_dummy = np.zeros_like(latency)
-    return iops, latency, half_dummy
+    # Allow integer index or column name

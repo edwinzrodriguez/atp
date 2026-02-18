@@ -6,10 +6,10 @@ from typing import Optional
 
 import numpy as np
 
-from .io import read_table
-from .computation import find_knee_half_latency
-from .output import write_text_report, make_comparison_lines
-from .plotting import plot_latency_curve, plot_latency_curve_compare
+from atp.io import read_table
+from atp.computation import find_knee_half_latency
+from atp.output import write_text_report, make_comparison_lines
+from atp.plotting import plot_latency_curve, plot_latency_curve_compare
 
 
 def positive_int(value: str) -> Optional[int]:
@@ -25,9 +25,9 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Compute ATP (IOPS at knee) using the Half-Latency Rule and optionally plot results.",
     )
-    p.add_argument("input", help="Path to input CSV/XLSX file")
-    p.add_argument("--iops-col", required=True, help="Column name or index for IOPS")
-    p.add_argument("--latency-col", required=True, help="Column name or index for latency")
+    p.add_argument("input", help="Path to input CSV/XLSX/XML file")
+    p.add_argument("--iops-col", help="Column name or index for IOPS (not needed for XML)")
+    p.add_argument("--latency-col", help="Column name or index for latency (not needed for XML)")
     p.add_argument("--sheet", help="Sheet name or index for Excel files", default=None)
     p.add_argument("--delimiter", help="CSV delimiter (auto-detected by pandas if omitted)")
     p.add_argument("--header", help="Header row index (default 0); use 'none' for no header", default="0")
@@ -61,6 +61,10 @@ def main(argv=None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    is_xml = args.input.lower().endswith(".xml")
+    if not is_xml and (args.iops_col is None or args.latency_col is None):
+        parser.error("--iops-col and --latency-col are required for non-XML files.")
+
     header: Optional[int]
     if args.header is None:
         header = 0
@@ -69,8 +73,8 @@ def main(argv=None) -> int:
     else:
         header = int(args.header)
 
-    iops_col = parse_col_arg(args.iops_col)
-    latency_col = parse_col_arg(args.latency_col)
+    iops_col = parse_col_arg(args.iops_col) if args.iops_col else None
+    latency_col = parse_col_arg(args.latency_col) if args.latency_col else None
     sheet = None
     if args.sheet is not None:
         try:

@@ -49,7 +49,8 @@ def _validate_xy(iops: np.ndarray, latency: np.ndarray) -> Tuple[np.ndarray, np.
         raise ValueError("not enough valid points after removing NaNs")
     # sort by iops ascending
     order = np.argsort(iops)
-    return iops[order], latency[order]
+    return iops, latency
+    # return iops[order], latency[order]
 
 
 def moving_average(y: np.ndarray, window: int) -> np.ndarray:
