@@ -30,6 +30,7 @@ excel = ["openpyxl"]
 
 [project.scripts]
 atp = "atp.cli:main"
+atp-plot = "atp.xml_plotter:main"
 
 [tool.setuptools]
 packages = ["atp"]

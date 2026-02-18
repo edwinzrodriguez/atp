@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+import io
 import numpy as np
 
 try:
@@ -19,6 +20,70 @@ from .computation import KneeResult
 def _require_matplotlib():
     if plt is None:
         raise RuntimeError("matplotlib is required for plotting. Please install matplotlib.")
+
+
+def plot_metrics(
+    datasets: list[dict],
+    x_label: str,
+    y_label: str,
+    title: Optional[str] = None,
+    save_pdf: Optional[str] = None,
+    save_html: Optional[str] = None,
+    show: bool = False,
+):
+    """
+    General plotting function for multiple datasets.
+    datasets: list of dict with 'x', 'y', and optional 'label' keys.
+    Supports PDF and HTML (with SVG) output.
+    """
+    _require_matplotlib()
+    fig, ax = plt.subplots(figsize=(10, 7))
+    
+    for i, data in enumerate(datasets):
+        x_data = data['x']
+        y_data = data['y']
+        label = data.get('label', f"Dataset {i+1}")
+        ax.plot(x_data, y_data, marker="o", linestyle="-", label=label)
+    
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    ax.grid(True, linestyle=":", alpha=0.5)
+    if len(datasets) > 1:
+        ax.legend()
+        
+    if title:
+        ax.set_title(title)
+    else:
+        ax.set_title(f"{y_label} vs {x_label}")
+
+    if save_pdf:
+        fig.savefig(save_pdf, format="pdf", bbox_inches="tight")
+    
+    if save_html:
+        # Save to SVG first
+        svg_io = io.StringIO()
+        fig.savefig(svg_io, format="svg", bbox_inches="tight")
+        svg_content = svg_io.getvalue()
+        
+        html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>{title or "Plot"}</title>
+</head>
+<body>
+    <h1>{title or f"{y_label} vs {x_label}"}</h1>
+    <div>
+        {svg_content}
+    </div>
+</body>
+</html>
+"""
+        with open(save_html, "w", encoding="utf-8") as f:
+            f.write(html_content)
+
+    if show:
+        plt.show()
+    plt.close(fig)
 
 
 def plot_latency_curve(

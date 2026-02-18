@@ -25,6 +25,48 @@ def _require_pandas():
         )
 
 
+def read_xml_all_metrics(path: str) -> pd.DataFrame:
+    """
+    Read an XML summary file and return a pandas DataFrame with all metrics.
+    """
+    _require_pandas()
+    tree = ET.parse(path)
+    root = tree.getroot()
+    
+    data = []
+    for run in root.findall("run"):
+        row = {}
+        # Basic run attributes
+        for attr in ["time", "fingerprint", "version"]:
+            if run.get(attr):
+                row[attr] = run.get(attr)
+        
+        # business_metric
+        bm = run.find("business_metric")
+        if bm is not None:
+            row["business_metric"] = bm.text
+            
+        # metrics
+        for m in run.findall("metric"):
+            name = m.get("name")
+            if name:
+                try:
+                    row[name] = float(m.text) if m.text else None
+                except (ValueError, TypeError):
+                    row[name] = m.text
+        
+        # valid_run
+        vr = run.find("valid_run")
+        if vr is not None:
+            row["valid_run"] = vr.text if vr.text else "VALID"
+        else:
+            row["valid_run"] = "VALID"
+            
+        data.append(row)
+        
+    return pd.DataFrame(data)
+
+
 def read_xml(path: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Read an XML summary file and extract achieved rate and average latency.
