@@ -1,8 +1,9 @@
 import argparse
 import sys
 import os
-from .io import read_xml_all_metrics
-from .plotting import plot_metrics
+import pandas as pd
+from atp.io import read_xml_all_metrics
+from atp.plotting import plot_metrics
 
 def main():
     parser = argparse.ArgumentParser(description="Plot metrics from one or more XML performance summary files.")
@@ -14,6 +15,8 @@ def main():
     parser.add_argument("--title", help="Plot title")
     parser.add_argument("--show", action="store_true", help="Show the plot in a window")
     parser.add_argument("--prefix", help="Generate 3 standard plots using the specified prefix for file names")
+    parser.add_argument("--output-excel", action="store_true", help="Generate Excel spreadsheets when used with --prefix")
+    parser.add_argument("--excel-file", help="Output path for a combined Excel spreadsheet when not using --prefix")
 
     args = parser.parse_args()
 
@@ -25,10 +28,12 @@ def main():
             ("achieved rate", "average latency", f"{args.prefix}_achieved_rate_vs_avg_latency")
         ]
         
+        xml_files_list = list(args.xml_files)
+        
         for x_metric, y_metric, output_base in plots:
             print(f"Generating plot: {x_metric} vs {y_metric}")
             run_plot(
-                xml_files=args.xml_files,
+                xml_files=xml_files_list,
                 x_axis=x_metric,
                 y_axis=y_metric,
                 output_pdf=f"{output_base}.pdf",
@@ -36,6 +41,25 @@ def main():
                 title=args.title,
                 show=args.show
             )
+            
+            if args.output_excel:
+                print(f"Exporting Excel: {x_metric} vs {y_metric}")
+                run_excel_export(
+                    xml_files=xml_files_list,
+                    x_axis=x_metric,
+                    y_axis=y_metric,
+                    output_excel=f"{output_base}.xlsx"
+                )
+    elif args.excel_file:
+        if not args.x_axis or not args.y_axis:
+            parser.error("the following arguments are required: --x-axis, --y-axis (unless --prefix is used)")
+        
+        run_excel_export(
+            xml_files=args.xml_files,
+            x_axis=args.x_axis,
+            y_axis=args.y_axis,
+            output_excel=args.excel_file
+        )
     else:
         if not args.x_axis or not args.y_axis:
             parser.error("the following arguments are required: --x-axis, --y-axis (unless --prefix is used)")
@@ -117,6 +141,79 @@ def run_plot(xml_files, x_axis, y_axis, output_pdf=None, output_html=None, title
         print(f"PDF plot saved to {output_pdf}")
     if output_html:
         print(f"HTML plot saved to {output_html}")
+
+def run_excel_export(xml_files, x_axis, y_axis, output_excel):
+    combined_df = None
+    
+    def to_float(x):
+        if isinstance(x, (int, float)):
+            return float(x)
+        if isinstance(x, str):
+            try:
+                return float(x)
+            except ValueError:
+                return None
+        return None
+
+    for xml_file in xml_files:
+        if not os.path.exists(xml_file):
+            print(f"Error: File {xml_file} not found.")
+            sys.exit(1)
+
+        try:
+            df = read_xml_all_metrics(xml_file)
+        except Exception as e:
+            print(f"Error reading XML file {xml_file}: {e}")
+            sys.exit(1)
+
+        if x_axis not in df.columns:
+            print(f"Error: Metric '{x_axis}' not found in {xml_file}. Available metrics: {', '.join(df.columns)}")
+            sys.exit(1)
+        if y_axis not in df.columns:
+            print(f"Error: Metric '{y_axis}' not found in {xml_file}. Available metrics: {', '.join(df.columns)}")
+            sys.exit(1)
+
+        # Filter and convert to numeric
+        df = df[[x_axis, y_axis]].copy()
+        df[x_axis] = df[x_axis].apply(to_float)
+        df[y_axis] = df[y_axis].apply(to_float)
+        df = df.dropna(subset=[x_axis, y_axis])
+        
+        if df.empty:
+            print(f"Warning: No valid numeric data found for selected axes in {xml_file}. Skipping.")
+            continue
+
+        # Rename y_axis column to filename for identification
+        label = os.path.basename(xml_file)
+        
+        # We need to keep x_axis for merging, but we want the y_axis to be named after the file.
+        # If x_axis and y_axis are same, we create a copy for the y values.
+        temp_df = pd.DataFrame()
+        temp_df[x_axis] = df[x_axis]
+        temp_df[label] = df[y_axis]
+        
+        if combined_df is None:
+            combined_df = temp_df
+        else:
+            # Outer merge to include all x-axis values from all files
+            combined_df = pd.merge(combined_df, temp_df, on=x_axis, how='outer')
+
+    if combined_df is None or combined_df.empty:
+        print("Error: No valid data to export from any of the provided files.")
+        return
+
+    # Sort by x-axis for better readability
+    combined_df = combined_df.sort_values(by=x_axis)
+    
+    try:
+        combined_df.to_excel(output_excel, index=False)
+        print(f"Combined Excel spreadsheet saved to {output_excel}")
+    except ImportError:
+        print("Error: 'openpyxl' is required for Excel output. Please install it with: pip install openpyxl")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error saving Excel file: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
