@@ -17,6 +17,7 @@ def main():
     parser.add_argument("--prefix", help="Generate 3 standard plots using the specified prefix for file names")
     parser.add_argument("--output-excel", action="store_true", help="Generate Excel spreadsheets when used with --prefix")
     parser.add_argument("--excel-file", help="Output path for a combined Excel spreadsheet when not using --prefix")
+    parser.add_argument("--sort-x", action="store_true", help="Sort the x-axis values (disabled by default)")
 
     args = parser.parse_args()
 
@@ -39,7 +40,8 @@ def main():
                 output_pdf=f"{output_base}.pdf",
                 output_html=f"{output_base}.html",
                 title=args.title,
-                show=args.show
+                show=args.show,
+                sort_x=args.sort_x
             )
             
             if args.output_excel:
@@ -48,7 +50,8 @@ def main():
                     xml_files=xml_files_list,
                     x_axis=x_metric,
                     y_axis=y_metric,
-                    output_excel=f"{output_base}.xlsx"
+                    output_excel=f"{output_base}.xlsx",
+                    sort_x=args.sort_x
                 )
     elif args.excel_file:
         if not args.x_axis or not args.y_axis:
@@ -58,7 +61,8 @@ def main():
             xml_files=args.xml_files,
             x_axis=args.x_axis,
             y_axis=args.y_axis,
-            output_excel=args.excel_file
+            output_excel=args.excel_file,
+            sort_x=args.sort_x
         )
     else:
         if not args.x_axis or not args.y_axis:
@@ -71,10 +75,11 @@ def main():
             output_pdf=args.output_pdf,
             output_html=args.output_html,
             title=args.title,
-            show=args.show
+            show=args.show,
+            sort_x=args.sort_x
         )
 
-def run_plot(xml_files, x_axis, y_axis, output_pdf=None, output_html=None, title=None, show=False):
+def run_plot(xml_files, x_axis, y_axis, output_pdf=None, output_html=None, title=None, show=False, sort_x=False):
     datasets = []
     for xml_file in xml_files:
         if not os.path.exists(xml_file):
@@ -114,8 +119,9 @@ def run_plot(xml_files, x_axis, y_axis, output_pdf=None, output_html=None, title
             print(f"Warning: No valid numeric data found for selected axes in {xml_file}. Skipping.")
             continue
 
-        # Sort by x-axis for better plotting
-        df = df.sort_values(by=x_axis)
+        if sort_x:
+            # Sort by x-axis for better plotting
+            df = df.sort_values(by=x_axis)
         
         datasets.append({
             'x': df[x_axis].values,
@@ -142,7 +148,7 @@ def run_plot(xml_files, x_axis, y_axis, output_pdf=None, output_html=None, title
     if output_html:
         print(f"HTML plot saved to {output_html}")
 
-def run_excel_export(xml_files, x_axis, y_axis, output_excel):
+def run_excel_export(xml_files, x_axis, y_axis, output_excel, sort_x=False):
     combined_df = None
     
     def to_float(x):
@@ -202,8 +208,9 @@ def run_excel_export(xml_files, x_axis, y_axis, output_excel):
         print("Error: No valid data to export from any of the provided files.")
         return
 
-    # Sort by x-axis for better readability
-    combined_df = combined_df.sort_values(by=x_axis)
+    if sort_x:
+        # Sort by x-axis for better readability
+        combined_df = combined_df.sort_values(by=x_axis)
     
     try:
         combined_df.to_excel(output_excel, index=False)
