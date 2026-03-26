@@ -29,12 +29,10 @@ def main():
             ("achieved rate", "average latency", f"{args.prefix}_achieved_rate_vs_avg_latency")
         ]
         
-        xml_files_list = list(args.xml_files)
-        
         for x_metric, y_metric, output_base in plots:
             print(f"Generating plot: {x_metric} vs {y_metric}")
             run_plot(
-                xml_files=xml_files_list,
+                xml_files=args.xml_files,
                 x_axis=x_metric,
                 y_axis=y_metric,
                 output_pdf=f"{output_base}.pdf",
@@ -47,7 +45,7 @@ def main():
             if args.output_excel:
                 print(f"Exporting Excel: {x_metric} vs {y_metric}")
                 run_excel_export(
-                    xml_files=xml_files_list,
+                    xml_files=args.xml_files,
                     x_axis=x_metric,
                     y_axis=y_metric,
                     output_excel=f"{output_base}.xlsx",
@@ -58,19 +56,19 @@ def main():
         if not args.x_axis or not args.y_axis:
             parser.error("the following arguments are required: --x-axis, --y-axis (unless --prefix is used)")
 
-        # Run Excel export if requested
-        if args.excel_file:
-            run_excel_export(
-                xml_files=args.xml_files,
-                x_axis=args.x_axis,
-                y_axis=args.y_axis,
-                output_excel=args.excel_file,
-                sort_x=args.sort_x
-            )
+    # Run Excel export if requested
+    if args.excel_file:
+        run_excel_export(
+            xml_files=args.xml_files,
+            x_axis=args.x_axis,
+            y_axis=args.y_axis,
+            output_excel=args.excel_file,
+            sort_x=args.sort_x
+        )
 
-        # Run Plot if PDF or HTML or show is requested
-        if args.output_pdf or args.output_html or args.show:
-            run_plot(
+    # Run Plot if PDF or HTML or show is requested
+    if args.output_pdf or args.output_html or args.show:
+        run_plot(
                 xml_files=args.xml_files,
                 x_axis=args.x_axis,
                 y_axis=args.y_axis,
