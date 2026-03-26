@@ -213,7 +213,10 @@ def run_excel_export(xml_files, x_axis, y_axis, output_excel, sort_x=False):
         combined_df = combined_df.sort_values(by=x_axis)
     
     try:
-        combined_df.to_excel(output_excel, index=False)
+        sheet_name = os.path.splitext(os.path.basename(output_excel))[0]
+        # Excel sheet names have a maximum length of 31 characters
+        sheet_name = sheet_name[:31]
+        combined_df.to_excel(output_excel, index=False, sheet_name=sheet_name)
         print(f"Combined Excel spreadsheet saved to {output_excel}")
     except ImportError:
         print("Error: 'openpyxl' is required for Excel output. Please install it with: pip install openpyxl")
