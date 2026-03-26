@@ -53,31 +53,33 @@ def main():
                     output_excel=f"{output_base}.xlsx",
                     sort_x=args.sort_x
                 )
-    elif args.excel_file:
-        if not args.x_axis or not args.y_axis:
-            parser.error("the following arguments are required: --x-axis, --y-axis (unless --prefix is used)")
-        
-        run_excel_export(
-            xml_files=args.xml_files,
-            x_axis=args.x_axis,
-            y_axis=args.y_axis,
-            output_excel=args.excel_file,
-            sort_x=args.sort_x
-        )
     else:
+        # Check for required metrics unless prefix is used
         if not args.x_axis or not args.y_axis:
             parser.error("the following arguments are required: --x-axis, --y-axis (unless --prefix is used)")
-        
-        run_plot(
-            xml_files=args.xml_files,
-            x_axis=args.x_axis,
-            y_axis=args.y_axis,
-            output_pdf=args.output_pdf,
-            output_html=args.output_html,
-            title=args.title,
-            show=args.show,
-            sort_x=args.sort_x
-        )
+
+        # Run Excel export if requested
+        if args.excel_file:
+            run_excel_export(
+                xml_files=args.xml_files,
+                x_axis=args.x_axis,
+                y_axis=args.y_axis,
+                output_excel=args.excel_file,
+                sort_x=args.sort_x
+            )
+
+        # Run Plot if PDF or HTML or show is requested
+        if args.output_pdf or args.output_html or args.show:
+            run_plot(
+                xml_files=args.xml_files,
+                x_axis=args.x_axis,
+                y_axis=args.y_axis,
+                output_pdf=args.output_pdf,
+                output_html=args.output_html,
+                title=args.title,
+                show=args.show,
+                sort_x=args.sort_x
+            )
 
 def run_plot(xml_files, x_axis, y_axis, output_pdf=None, output_html=None, title=None, show=False, sort_x=False):
     datasets = []
