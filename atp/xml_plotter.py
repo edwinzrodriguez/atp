@@ -18,6 +18,7 @@ def main():
     parser.add_argument("--output-excel", action="store_true", help="Generate Excel spreadsheets when used with --prefix")
     parser.add_argument("--excel-file", help="Output path for a combined Excel spreadsheet when not using --prefix")
     parser.add_argument("--sort-x", action="store_true", help="Sort the x-axis values (disabled by default)")
+    parser.add_argument("--pct-diff", action="store_true", help="Plot percentage difference from the first series")
 
     args = parser.parse_args()
 
@@ -39,8 +40,24 @@ def main():
                 output_html=f"{output_base}.html",
                 title=args.title,
                 show=args.show,
-                sort_x=args.sort_x
+                sort_x=args.sort_x,
+                pct_diff=args.pct_diff
             )
+            
+            # Generate a 4th plot for percentage difference if requested
+            if args.pct_diff:
+                print(f"Generating % difference plot: {x_metric} vs {y_metric}")
+                run_plot(
+                    xml_files=args.xml_files,
+                    x_axis=x_metric,
+                    y_axis=y_metric,
+                    output_pdf=f"{output_base}_pct_diff.pdf",
+                    output_html=f"{output_base}_pct_diff.html",
+                    title=f"{args.title} (% Diff)" if args.title else None,
+                    show=args.show,
+                    sort_x=args.sort_x,
+                    pct_diff=True
+                )
             
             if args.output_excel:
                 print(f"Exporting Excel: {x_metric} vs {y_metric}")
@@ -51,6 +68,17 @@ def main():
                     output_excel=f"{output_base}.xlsx",
                     sort_x=args.sort_x
                 )
+                
+                if args.pct_diff:
+                    print(f"Exporting % difference Excel: {x_metric} vs {y_metric}")
+                    run_excel_export(
+                        xml_files=args.xml_files,
+                        x_axis=x_metric,
+                        y_axis=y_metric,
+                        output_excel=f"{output_base}_pct_diff.xlsx",
+                        sort_x=args.sort_x,
+                        pct_diff=True
+                    )
     else:
         # Check for required metrics unless prefix is used
         if not args.x_axis or not args.y_axis:
@@ -63,7 +91,8 @@ def main():
             x_axis=args.x_axis,
             y_axis=args.y_axis,
             output_excel=args.excel_file,
-            sort_x=args.sort_x
+            sort_x=args.sort_x,
+            pct_diff=args.pct_diff
         )
 
     # Run Plot if PDF or HTML or show is requested
@@ -76,10 +105,11 @@ def main():
                 output_html=args.output_html,
                 title=args.title,
                 show=args.show,
-                sort_x=args.sort_x
+                sort_x=args.sort_x,
+                pct_diff=args.pct_diff
             )
 
-def run_plot(xml_files, x_axis, y_axis, output_pdf=None, output_html=None, title=None, show=False, sort_x=False):
+def run_plot(xml_files, x_axis, y_axis, output_pdf=None, output_html=None, title=None, show=False, sort_x=False, pct_diff=False):
     datasets = []
     for xml_file in xml_files:
         if not os.path.exists(xml_file):
@@ -110,8 +140,15 @@ def run_plot(xml_files, x_axis, y_axis, output_pdf=None, output_html=None, title
                     return None
             return None
 
+        # Print debug info if types look strange
+        # print(f"DEBUG: {xml_file} {x_axis} types: {df[x_axis].apply(type).unique()}")
+        
         df[x_axis] = df[x_axis].apply(to_float)
         df[y_axis] = df[y_axis].apply(to_float)
+        
+        # Ensure x-axis is rounded to avoid precision issues during merge
+        if pd.api.types.is_float_dtype(df[x_axis]):
+            df[x_axis] = df[x_axis].round(6)
         
         df = df.dropna(subset=[x_axis, y_axis])
         
@@ -133,6 +170,57 @@ def run_plot(xml_files, x_axis, y_axis, output_pdf=None, output_html=None, title
         print("Error: No valid data to plot from any of the provided files.")
         return
 
+    if pct_diff:
+        if len(datasets) < 2:
+            print("Warning: Percentage difference requires at least two datasets. Plotting normal values.")
+        else:
+            # Use pandas to align datasets by x-axis for computation
+            baseline_label = datasets[0]['label']
+            
+            # Create a combined dataframe for all points
+            dfs = []
+            for d in datasets:
+                dfs.append(pd.DataFrame({x_axis: d['x'], d['label']: d['y']}))
+            
+            # Merge all dataframes on x_axis
+            merged_df = dfs[0]
+            for next_df in dfs[1:]:
+                # We use a custom suffix to handle cases where labels might overlap if not careful, 
+                # but labels are unique (filenames).
+                merged_df = pd.merge(merged_df, next_df, on=x_axis, how='outer')
+            
+            # Re-read filenames from datasets to ensure we use the same labels
+            labels = [d['label'] for d in datasets]
+            baseline_col = labels[0]
+            # Use a copy of the baseline values to ensure it's not modified while computing other columns
+            baseline_values = merged_df[baseline_col].copy()
+            
+            if sort_x:
+                merged_df = merged_df.sort_values(by=x_axis)
+                
+            # Compute percentage difference relative to the first column
+            pct_datasets = []
+            
+            for label in labels:
+                # Formula: (value / baseline) * 100
+                diff_vals = (merged_df[label] / baseline_values) * 100
+                
+                # Handle cases where baseline is zero (if any)
+                diff_vals = diff_vals.replace([float('inf'), float('-inf')], float('nan'))
+                
+                # We need to extract back to datasets format
+                valid_mask = ~diff_vals.isna() & ~merged_df[x_axis].isna()
+                pct_datasets.append({
+                    'x': merged_df.loc[valid_mask, x_axis].values,
+                    'y': diff_vals[valid_mask].values,
+                    'label': label
+                })
+            
+            datasets = pct_datasets
+            if not title:
+                title = f"% of Baseline of {y_axis} vs {x_axis} (Baseline: {baseline_label})"
+            y_axis = f"% of Baseline ({y_axis})"
+
     plot_metrics(
         datasets=datasets,
         x_label=x_axis,
@@ -148,7 +236,7 @@ def run_plot(xml_files, x_axis, y_axis, output_pdf=None, output_html=None, title
     if output_html:
         print(f"HTML plot saved to {output_html}")
 
-def run_excel_export(xml_files, x_axis, y_axis, output_excel, sort_x=False):
+def run_excel_export(xml_files, x_axis, y_axis, output_excel, sort_x=False, pct_diff=False):
     combined_df = None
     
     def to_float(x):
@@ -183,6 +271,7 @@ def run_excel_export(xml_files, x_axis, y_axis, output_excel, sort_x=False):
         df = df[[x_axis, y_axis]].copy()
         df[x_axis] = df[x_axis].apply(to_float)
         df[y_axis] = df[y_axis].apply(to_float)
+        
         df = df.dropna(subset=[x_axis, y_axis])
         
         if df.empty:
@@ -212,6 +301,21 @@ def run_excel_export(xml_files, x_axis, y_axis, output_excel, sort_x=False):
         # Sort by x-axis for better readability
         combined_df = combined_df.sort_values(by=x_axis)
     
+    if pct_diff:
+        # Use the first filename as baseline
+        baseline_col = os.path.basename(xml_files[0])
+        if baseline_col in combined_df.columns:
+            # Create a copy of the baseline to avoid issues when baseline itself is modified
+            baseline_values = combined_df[baseline_col].copy()
+            # We want to skip x_axis column
+            cols_to_convert = [c for c in combined_df.columns if c != x_axis]
+            for col in cols_to_convert:
+                # Calculate % of Baseline: (value / baseline) * 100
+                # Using .loc to avoid SettingWithCopyWarning (though not strictly needed here as we are modifying a newly merged df)
+                combined_df[col] = (combined_df[col] / baseline_values) * 100
+                # Handle baseline being zero
+                combined_df[col] = combined_df[col].replace([float('inf'), float('-inf')], float('nan'))
+
     try:
         sheet_name = os.path.splitext(os.path.basename(output_excel))[0]
         # Excel sheet names have a maximum length of 31 characters
