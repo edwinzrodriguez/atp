@@ -8,7 +8,7 @@ import numpy as np
 
 from atp.io import read_table
 from atp.computation import find_knee_half_latency
-from atp.output import write_text_report, make_comparison_lines
+from atp.output import write_text_report, make_comparison_lines, write_comparison_report
 from atp.plotting import plot_latency_curve, plot_latency_curve_compare
 
 
@@ -130,9 +130,13 @@ def main(argv=None) -> int:
 
         res2 = find_knee_half_latency(iops2, latency2, rule=args.rule, smooth_window=args.smooth)
 
-        # Compose extra comparison lines and write a report primarily for dataset 1
-        comp_lines = make_comparison_lines(res, res2, label1=args.label1, label2=args.label2, latency_units=args.latency_units)
-        write_text_report(iops, latency, res, out_path=args.report, extra_lines=comp_lines, latency_units=args.latency_units)
+        write_comparison_report(
+            res, res2,
+            path1=args.input, path2=args.input2,
+            label1=args.label1, label2=args.label2,
+            latency_units=args.latency_units,
+            out_path=args.report,
+        )
 
         if args.plot_pdf or args.show:
             plot_latency_curve_compare(
