@@ -34,7 +34,7 @@ def read_xml_all_metrics(path: str) -> pd.DataFrame:
     root = tree.getroot()
     
     data = []
-    for run in root.findall("run"):
+    for run in root.iter("run"):
         row = {}
         # Basic run attributes
         for attr in ["time", "fingerprint", "version"]:
@@ -77,7 +77,7 @@ def read_xml(path: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     iops_list = []
     lat_list = []
     
-    for run in root.findall("run"):
+    for run in root.iter("run"):
         metrics = {m.get("name"): m.text for m in run.findall("metric")}
         
         # 'achieved rate' corresponds to IOPS, 'average latency' to latency
